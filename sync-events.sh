@@ -7,6 +7,7 @@ DB="$HOME/.timelapse/events.db"
 ENV_FILE="$HOME/.timelapse/.env"
 LOG_FILE="$HOME/.timelapse/logs/sync.log"
 LOCK_FILE="$HOME/.timelapse/sync.lock"
+LOCK_DIR="$HOME/.timelapse/sync.lockdir"
 BATCH_SIZE_DEFAULT=50
 MAX_RETRIES=20
 NOTIFY_SCRIPT="$HOME/.timelapse/notify-chat.sh"
@@ -40,11 +41,19 @@ notify_error() {
   fi
 }
 
-# ── flock: prevent concurrent runs
-exec 200>"$LOCK_FILE"
-if ! flock -n 200; then
-  log "SKIP already running"
-  exit 0
+# ── prevent concurrent runs
+if command -v flock >/dev/null 2>&1; then
+  exec 200>"$LOCK_FILE"
+  if ! flock -n 200; then
+    log "SKIP already running (flock)"
+    exit 0
+  fi
+else
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+    log "SKIP already running (lockdir)"
+    exit 0
+  fi
+  trap 'rmdir "$LOCK_DIR" 2>/dev/null || true; cleanup' EXIT
 fi
 
 # ── Load env
@@ -131,6 +140,7 @@ done < <(echo "$ROWS" | python3 -c "
 import sys, json
 
 rows = json.load(sys.stdin)
+allowed_sources = {'door_ble', 'hammerspoon', 'iphone_nfc'}
 for row in rows:
     meta = row.get('meta') or '{}'
     try:
@@ -138,8 +148,13 @@ for row in rows:
     except:
         meta_obj = {}
 
+    source = row.get('source')
+    if source not in allowed_sources:
+        meta_obj['ingest_original_source'] = source
+        source = 'hammerspoon'
+
     payload = {
-        'source': row['source'],
+        'source': source,
         'event_type': row['event_type'],
         'event_at': row['event_at'],
         'log_date': row['log_date'],

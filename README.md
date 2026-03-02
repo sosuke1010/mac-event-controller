@@ -41,6 +41,7 @@ vi ~/.timelapse/.env
 | `INGEST_API_BASE_URL` | Payload CMS base URL | `https://cms.sosuke.page` |
 | `INGEST_API_KEY` | Ingest auth key | (secret) |
 | `GOOGLE_CHAT_WEBHOOK_URL` | Google Chat incoming webhook URL (optional) | `https://chat.googleapis.com/v1/spaces/...` |
+| `GOOGLE_CHAT_NOTIFY_COOLDOWN_SEC` | 同一エラー通知の抑制秒数 | `600` |
 | `OFFICE_SSIDS` | Office WiFi SSIDs (comma-separated) | `ALC_7CE7,biz-tenjincho` |
 | `HOME_SSIDS` | Home WiFi SSIDs (comma-separated) | `Buffalo-3DC0-WPA3` |
 | `HOME_LOG_DATE_CUTOFF_HOUR` | 自宅時の log_date 前日繰り上げ閾値 | `4` |
@@ -98,6 +99,9 @@ launchctl list | grep timelapse
 # 通常実行
 ~/.timelapse/sync-events.sh
 ```
+
+補足:
+- API が `source` を `door_ble|hammerspoon|iphone_nfc` のみ許容するため、`sync-events.sh` は非対応 source（例: `sleepwatcher`, `manual`）を送信時に `hammerspoon` へ正規化し、元値を `meta.ingest_original_source` に保存します。
 
 ## sleepwatcher 実機検証 (pmset sleepnow)
 
