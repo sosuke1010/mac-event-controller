@@ -1,0 +1,122 @@
+# mac-event-collector — Agent Direction
+
+## Project Context
+macOS 上のシステムイベント（wake/sleep/power/wifi）を収集し、
+SQLite にローカル保存 → Payload CMS REST API にバッチ送信するシステム。
+
+- **稼働環境:** macOS Sequoia+ (Apple Silicon)
+- **言語/ツール:** bash, Lua (Hammerspoon), SQLite
+- **プロセス管理:** launchd + brew services (sleepwatcher)
+- **送信先:** `POST /api/ingest/raw-events`（my-handbook モノレポの Payload CMS）
+
+## Architecture
+
+```
+[sleepwatcher]                     [Hammerspoon]
+  ~/.wakeup → device_wake            power_connect, wifi_connect,
+  ~/.sleep  → device_sleep           power_disconnect, wifi_disconnect,
+      │                              device_sleep, app_start
+      │         sqlite3 CLI              │  hs.sqlite3
+      ▼                                 ▼
+[~/.timelapse/events.db]  ← SQLite WAL (共有ストア)
+      │
+      ▼
+[sync-events.sh]  ← launchd timer (3分間隔)
+      │  curl POST (バッチ送信)
+      ▼
+[Payload CMS: POST /api/ingest/raw-events]
+      │
+      ▼
+[RawEvents Collection → deriveVideoCutPoints]
+```
+
+## File Structure
+
+| ファイル | 役割 |
+|---|---|
+| `schema.sql` | SQLite スキーマ定義 |
+| `record-event.sh` | sleepwatcher 用: SSID取得 + location解決 + INSERT |
+| `sync-events.sh` | 未送信イベント → API バッチ送信 |
+| `hammerspoon/timelapse.lua` | Hammerspoon 設定 (SQLite 書き込み版) |
+| `sleepwatcher/.wakeup` | sleepwatcher wake スクリプト |
+| `sleepwatcher/.sleep` | sleepwatcher sleep スクリプト |
+| `launchd/com.timelapse.sync.plist` | sync 用 launchd agent |
+| `launchd/com.timelapse.healthcheck.plist` | Hammerspoon healthcheck |
+| `scripts/setup.sh` | 初回セットアップ自動化 |
+
+## Key Design Decisions
+
+### Local-First (SQLite)
+- 全イベントはまず SQLite に INSERT（ネットワーク障害に耐える）
+- sync は synced_at=NULL の差分送信
+- WAL モードで sleepwatcher と Hammerspoon の同時書き込みに対応
+
+### 重複排除 (Idempotency)
+- `UNIQUE(source, event_type, event_at)` 制約
+- `INSERT OR IGNORE` で重複は自動スキップ
+- API 側の 409 (duplicate) も成功扱い
+
+### 再送戦略
+- `retry_count` で失敗回数を管理
+- 20回超えで永久スキップ（pending index から除外）
+- `last_error` に直近の失敗理由を記録
+
+### 責務分離
+- **sleepwatcher**: wake/sleep 検知（カーネルレベル、最も信頼性が高い）
+- **Hammerspoon**: power/wifi/app イベント検知（hs.sqlite3 で直接書き込み）
+- **sync-events.sh**: API 送信のみ担当（検知から完全に分離）
+
+### Hammerspoon の位置づけ
+- HTTP 送信は行わない（sync に委譲）
+- queue.jsonl は使わない（SQLite に置換）
+- device_wake は sleepwatcher がメイン、Hammerspoon はバックアップ
+- healthTimer + heartbeat で launchd watchdog と連携
+
+## API Contract
+
+```
+POST /api/ingest/raw-events
+Header: X-Ingest-Key: <INGEST_API_KEY>
+Content-Type: application/json
+
+{
+  "source": "sleepwatcher" | "hammerspoon",
+  "event_type": "device_wake" | "device_sleep" | "power_connect" | ...,
+  "event_at": "2026-02-27T09:00:00+09:00",
+  "location": "office" | "home" | null,
+  "log_date": "2026-02-27",
+  "meta": { "ssid": "ALC_7CE7" }
+}
+```
+
+- 単一オブジェクトまたは配列を受け付ける
+- 認証: `X-Ingest-Key` ヘッダー
+- 409 = duplicate（成功扱い）
+
+## Environment Variables
+
+| 変数 | 説明 | 例 |
+|---|---|---|
+| `INGEST_API_BASE_URL` | Payload CMS のベース URL | `https://cms.sosuke.page` |
+| `INGEST_API_KEY` | ingest 認証キー | (secret) |
+| `OFFICE_SSIDS` | オフィス WiFi SSID (カンマ区切り) | `ALC_7CE7,biz-tenjincho` |
+| `HOME_SSIDS` | 自宅 WiFi SSID (カンマ区切り) | `Buffalo-3DC0-WPA3` |
+
+`~/.timelapse/.env` で管理。
+
+## Coding Standards
+
+- シェルスクリプト: bash, `set -euo pipefail`
+- Hammerspoon: Lua (hs.sqlite3 で SQLite 直接操作)
+- SQLite: WAL モード必須、prepared statement 推奨
+- ログは `~/.timelapse/logs/` に出力（sync, healthcheck）
+- 機密情報は `.env` に分離、リポジトリにコミットしない
+
+## Deployment
+
+```bash
+cd ~/mac-event-collector
+git pull origin main
+./scripts/setup.sh  # 差分のみ適用（冪等）
+# Hammerspoon → Reload Config
+```

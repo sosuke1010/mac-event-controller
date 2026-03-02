@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SQLite → Payload API sync (3分間隔)
+  セットアップ: scripts/setup.sh で自動配置
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.timelapse.sync</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/jyajyamaru/.timelapse/sync-events.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>180</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>

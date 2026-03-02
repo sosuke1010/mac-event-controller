@@ -1,0 +1,2 @@
+#!/bin/bash
+"$HOME/.timelapse/record-event.sh" device_wake sleepwatcher '{"trigger":"wakeup"}'
