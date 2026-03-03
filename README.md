@@ -34,6 +34,30 @@ vi ~/.timelapse/.env
 # → hammerspoon/timelapse.lua を参照
 ```
 
+## Dev Workflow (symlink運用)
+
+開発中に毎回 `cp` しなくて済むよう、`~/.timelapse/*.sh` をリポジトリ内スクリプトへ symlink 化できます。
+
+```bash
+ln -sfn ~/Development/mac-event-controller/sync-events.sh ~/.timelapse/sync-events.sh
+ln -sfn ~/Development/mac-event-controller/record-event.sh ~/.timelapse/record-event.sh
+ln -sfn ~/Development/mac-event-controller/timelapse-healthcheck.sh ~/.timelapse/timelapse-healthcheck.sh
+ln -sfn ~/Development/mac-event-controller/notify-chat.sh ~/.timelapse/notify-chat.sh
+
+chmod +x ~/Development/mac-event-controller/sync-events.sh \
+         ~/Development/mac-event-controller/record-event.sh \
+         ~/Development/mac-event-controller/timelapse-healthcheck.sh \
+         ~/Development/mac-event-controller/notify-chat.sh
+```
+
+確認:
+
+```bash
+ls -l ~/.timelapse/*.sh
+```
+
+`-> /Users/.../Development/mac-event-controller/...` と表示されれば反映済みです。以後はリポジトリ側を編集するだけで `~/.timelapse` 側にも即反映されます。
+
 ## Environment Variables (`~/.timelapse/.env`)
 
 | Variable | Description | Example |
