@@ -101,7 +101,7 @@ launchctl list | grep timelapse
 ```
 
 補足:
-- API が `source` を `door_ble|hammerspoon|iphone_nfc` のみ許容するため、`sync-events.sh` は非対応 source（例: `sleepwatcher`, `manual`）を送信時に `hammerspoon` へ正規化し、元値を `meta.ingest_original_source` に保存します。
+- API 側で `sleepwatcher` source を受理できるため、`sync-events.sh` は source を変換せず DB の値をそのまま送信します。
 
 ## sleepwatcher 実機検証 (pmset sleepnow)
 

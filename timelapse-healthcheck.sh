@@ -34,6 +34,25 @@ notify_error() {
   fi
 }
 
+notify_warning() {
+  local msg="$1"
+  if [ -x "$NOTIFY_SCRIPT" ]; then
+    "$NOTIFY_SCRIPT" "timelapse-healthcheck.sh" "WARNING" "$msg" || true
+  fi
+}
+
+is_transient_ipc_error() {
+  local text="$1"
+  case "$text" in
+    *"message port was invalidated"*|*"transport errors are normal if Hammerspoon is reloading"*|*"dropping corrupt reply Mach message"*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # ── state dir がなければ作成
 mkdir -p "$STATE_DIR"
 
@@ -86,6 +105,11 @@ HS_OUTPUT=$("$HS_CLI" -c "hs.reload()" 2>&1)
 HS_EXIT=$?
 
 if [ "$HS_EXIT" -ne 0 ]; then
+  if is_transient_ipc_error "$HS_OUTPUT"; then
+    log "WARNING transient hs.reload() failure exit_code=${HS_EXIT} output=${HS_OUTPUT}"
+    notify_warning "transient hs.reload() failure exit_code=${HS_EXIT} output=${HS_OUTPUT}"
+    exit 0
+  fi
   log "ERROR hs.reload() failed exit_code=${HS_EXIT} output=${HS_OUTPUT}"
   notify_error "hs.reload() failed exit_code=${HS_EXIT} output=${HS_OUTPUT}"
   exit 1

@@ -140,7 +140,6 @@ done < <(echo "$ROWS" | python3 -c "
 import sys, json
 
 rows = json.load(sys.stdin)
-allowed_sources = {'door_ble', 'hammerspoon', 'iphone_nfc'}
 for row in rows:
     meta = row.get('meta') or '{}'
     try:
@@ -148,13 +147,8 @@ for row in rows:
     except:
         meta_obj = {}
 
-    source = row.get('source')
-    if source not in allowed_sources:
-        meta_obj['ingest_original_source'] = source
-        source = 'hammerspoon'
-
     payload = {
-        'source': source,
+        'source': row['source'],
         'event_type': row['event_type'],
         'event_at': row['event_at'],
         'log_date': row['log_date'],
