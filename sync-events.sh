@@ -42,6 +42,8 @@ notify_error() {
 }
 
 # ── prevent concurrent runs
+LOCK_STALE_SEC=600  # 10 minutes
+
 if command -v flock >/dev/null 2>&1; then
   exec 200>"$LOCK_FILE"
   if ! flock -n 200; then
@@ -50,8 +52,24 @@ if command -v flock >/dev/null 2>&1; then
   fi
 else
   if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    log "SKIP already running (lockdir)"
-    exit 0
+    # lockdir exists — check if it's stale (left by a crashed process)
+    if [ -d "$LOCK_DIR" ]; then
+      lock_age=$(( $(date +%s) - $(stat -f %m "$LOCK_DIR") ))
+      if [ "$lock_age" -gt "$LOCK_STALE_SEC" ]; then
+        log "WARN stale lockdir detected (age=${lock_age}s > ${LOCK_STALE_SEC}s), removing"
+        rmdir "$LOCK_DIR" 2>/dev/null || rm -rf "$LOCK_DIR"
+        if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+          log "SKIP cannot re-acquire lock after stale removal"
+          exit 0
+        fi
+      else
+        log "SKIP already running (lockdir, age=${lock_age}s)"
+        exit 0
+      fi
+    else
+      log "SKIP already running (lockdir)"
+      exit 0
+    fi
   fi
   trap 'rmdir "$LOCK_DIR" 2>/dev/null || true; cleanup' EXIT
 fi

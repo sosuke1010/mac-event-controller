@@ -24,23 +24,16 @@ else
   echo "[2/7] events.db exists (schema applied)"
 fi
 
-# ── 3. Copy scripts
-cp "$SCRIPT_DIR/record-event.sh" "$TIMELAPSE_DIR/"
-chmod +x "$TIMELAPSE_DIR/record-event.sh"
-cp "$SCRIPT_DIR/sync-events.sh" "$TIMELAPSE_DIR/"
-chmod +x "$TIMELAPSE_DIR/sync-events.sh"
-cp "$SCRIPT_DIR/notify-chat.sh" "$TIMELAPSE_DIR/"
-chmod +x "$TIMELAPSE_DIR/notify-chat.sh"
-cp "$SCRIPT_DIR/timelapse-healthcheck.sh" "$TIMELAPSE_DIR/"
-chmod +x "$TIMELAPSE_DIR/timelapse-healthcheck.sh"
-echo "[3/7] scripts copied to $TIMELAPSE_DIR/"
+# ── 3. Symlink scripts
+for name in record-event.sh sync-events.sh notify-chat.sh timelapse-healthcheck.sh; do
+  ln -sf "$SCRIPT_DIR/$name" "$TIMELAPSE_DIR/$name"
+done
+echo "[3/7] scripts symlinked to $TIMELAPSE_DIR/"
 
 # ── 4. sleepwatcher scripts
-cp "$SCRIPT_DIR/sleepwatcher/.wakeup" "$HOME/.wakeup"
-chmod +x "$HOME/.wakeup"
-cp "$SCRIPT_DIR/sleepwatcher/.sleep" "$HOME/.sleep"
-chmod +x "$HOME/.sleep"
-echo "[4/7] sleepwatcher scripts installed (~/.wakeup, ~/.sleep)"
+ln -sf "$SCRIPT_DIR/sleepwatcher/.wakeup" "$HOME/.wakeup"
+ln -sf "$SCRIPT_DIR/sleepwatcher/.sleep" "$HOME/.sleep"
+echo "[4/7] sleepwatcher scripts symlinked (~/.wakeup, ~/.sleep)"
 
 # ── 5. Check .env
 if [ ! -f "$TIMELAPSE_DIR/.env" ]; then
